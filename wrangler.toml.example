@@ -1,0 +1,16 @@
+name = "blog-backend-cloudflare"
+main = "./src/index.ts"
+compatibility_date = "2022-05-03"
+route = { pattern = "blog-api.example.com", custom_domain = true }
+node_compat = true
+
+[[r2_buckets]]
+binding = 'BUCKET'
+bucket_name = 'static'
+preview_bucket_name = 'static'
+
+[vars]
+USERNAME = "Username"
+PASSWORD = "Password"
+JWT_SECRET = "JwtSecret"
+BASE_DIR = "blog"

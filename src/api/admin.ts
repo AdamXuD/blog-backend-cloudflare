@@ -157,18 +157,16 @@ adminApi.put('/article/stage', async (request: Request, env: Env) => {
 });
 
 adminApi.delete('/article', async (request: Request, env: Env) => {
-	const content: { uuid: string } = await request.json();
-	if (!content || !content.uuid) {
+	const content: { uuids: string[] } = await request.json();
+	if (!content || !content.uuids || content.uuids.length === 0) {
 		return error(400);
 	}
-	const currentJson = await env.BUCKET.get(`${env.BASE_DIR}/articles/${content.uuid}/current`);
-	if (!currentJson) {
-		return error(404);
-	}
-	await env.BUCKET.delete(`${env.BASE_DIR}/articles/${content.uuid}/stage`);
-	await env.BUCKET.delete(`${env.BASE_DIR}/articles/${content.uuid}/backup`);
-	await env.BUCKET.delete(`${env.BASE_DIR}/articles/${content.uuid}/current`);
 
+	content.uuids.forEach(async uuid => {
+		await env.BUCKET.delete(`${env.BASE_DIR}/articles/${uuid}/stage`);
+		await env.BUCKET.delete(`${env.BASE_DIR}/articles/${uuid}/backup`);
+		await env.BUCKET.delete(`${env.BASE_DIR}/articles/${uuid}/current`);
+	});
 	const metadataJson = await env.BUCKET.get(`${env.BASE_DIR}/metadata`);
 	if (!metadataJson) {
 		return error(500, 'Internal Error: Metadata not found');
@@ -179,7 +177,7 @@ adminApi.delete('/article', async (request: Request, env: Env) => {
 		`${env.BASE_DIR}/metadata`,
 		JSON.stringify({
 			...metadata,
-			articles: metadata.articles.filter(item => item.uuid !== content.uuid),
+			articles: metadata.articles.filter(item => !content.uuids.includes(item.uuid)),
 		}),
 		jsonPutOption
 	);
@@ -222,11 +220,13 @@ adminApi.post('/attachment', async (request: Request, env: Env) => {
 });
 
 adminApi.delete('/attachment', async (request: Request, env: Env) => {
-	const content: { filename: string } = await request.json();
-	if (!content || !content.filename) {
+	const content: { filenames: string[] } = await request.json();
+	if (!content || !content.filenames || content.filenames.length === 0) {
 		return error(400);
 	}
-	await env.BUCKET.delete(`${env.BASE_DIR}/attachments/${content.filename}`);
+	content.filenames.forEach(async filename => {
+		await env.BUCKET.delete(`${env.BASE_DIR}/attachments/${filename}`);
+	});
 
 	const attachmentListJson = await env.BUCKET.get(`${env.BASE_DIR}/attachment-list`);
 	if (!attachmentListJson) {
@@ -240,44 +240,10 @@ adminApi.delete('/attachment', async (request: Request, env: Env) => {
 	);
 	await env.BUCKET.put(
 		`${env.BASE_DIR}/attachment-list`,
-		JSON.stringify(attachmentList.filter(item => item.filename !== content.filename)),
+		JSON.stringify(attachmentList.filter(item => !content.filenames.includes(item.filename))),
 		jsonPutOption
 	);
 	return new Response('Attachment deleted', { status: 200 });
-});
-
-adminApi.put('/attachment', async (request: Request, env: Env) => {
-	const content: { filename: string; article_uuid: string } = await request.json();
-	if (!content || !content.filename || !content.article_uuid) {
-		return error(400);
-	}
-
-	const attachmentListJson = await env.BUCKET.get(`${env.BASE_DIR}/attachment-list`);
-	if (!attachmentListJson) {
-		return error(500, 'Internal Error: Attachment List Not Found.');
-	}
-	const attachmentList: Attachment[] = await attachmentListJson.json();
-	await env.BUCKET.put(
-		`${env.BASE_DIR}/attachment-list-bak`,
-		JSON.stringify(attachmentList),
-		jsonPutOption
-	);
-	await env.BUCKET.put(
-		`${env.BASE_DIR}/attachment-list`,
-		JSON.stringify(
-			attachmentList.map(item => {
-				if (item.filename === content.filename) {
-					return {
-						...item,
-						article_uuid: content.article_uuid,
-					};
-				}
-				return item;
-			})
-		),
-		jsonPutOption
-	);
-	return new Response('Attachment updated', { status: 200 });
 });
 
 adminApi.put('/init', async (request: Request, env: Env) => {
